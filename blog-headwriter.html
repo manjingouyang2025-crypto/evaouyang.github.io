@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building HeadWriter: When Copy-Pasting Between 5 LLMs Drove Me to Build My Own Tool | Eva Ouyang</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --accent: #1e40af;
+            --bg: #ffffff;
+            --bg-secondary: #f8fafc;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.8;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Space Grotesk', sans-serif;
+            color: var(--text);
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.5rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary-light);
+        }
+
+        /* Article Header */
+        .article-header {
+            padding: 8rem 10% 4rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--primary-light);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .article-tag {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(37, 99, 235, 0.1);
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+
+        .article-header h1 {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+        }
+
+        .article-meta {
+            display: flex;
+            gap: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            flex-wrap: wrap;
+        }
+
+        /* Article Content */
+        .article-content {
+            max-width: 750px;
+            margin: 0 auto;
+            padding: 0 10% 6rem;
+        }
+
+        .article-content p {
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+
+        .article-content h2 {
+            font-size: 1.8rem;
+            margin: 3rem 0 1.5rem;
+            color: var(--text);
+        }
+
+        .article-content h3 {
+            font-size: 1.4rem;
+            margin: 2rem 0 1rem;
+            color: var(--text);
+        }
+
+        .highlight-box {
+            background: var(--bg-secondary);
+            border-left: 4px solid var(--primary);
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-radius: 0 12px 12px 0;
+        }
+
+        .highlight-box p {
+            margin-bottom: 0;
+            font-size: 1.05rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        .flow-list {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .flow-item {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            align-items: flex-start;
+        }
+
+        .flow-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .flow-number {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            background: var(--gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: white;
+        }
+
+        .flow-text {
+            padding-top: 0.25rem;
+        }
+
+        .flow-text strong {
+            color: var(--primary-light);
+        }
+
+        .code-block {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+        }
+
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 2rem;
+            background: var(--gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 500;
+            margin: 2rem 0;
+            transition: all 0.3s;
+        }
+
+        .github-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(99,102,241,0.4);
+        }
+
+        .takeaway-box {
+            background: linear-gradient(135deg, var(--border) 0%, rgba(244,114,182,0.1) 100%);
+            border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 3rem 0;
+        }
+
+        .takeaway-box h3 {
+            margin-top: 0;
+            color: var(--primary-light);
+        }
+
+        .takeaway-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .takeaway-list li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .takeaway-list li::before {
+            content: '✦';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+        }
+
+        /* Product Screenshot */
+        .product-screenshot {
+            margin: 2.5rem 0;
+            text-align: center;
+        }
+
+        .product-screenshot img {
+            max-width: 100%;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+
+        .screenshot-caption {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Model Analysis Cards */
+        .model-analysis {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .model-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .model-card h4 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .model-card .strength {
+            font-size: 0.9rem;
+            color: #059669;
+            margin-bottom: 0.5rem;
+        }
+
+        .model-card .weakness {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 768px) {
+            .model-analysis {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Feedback Features */
+        .feedback-features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feedback-item {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border-left: 3px solid var(--primary);
+        }
+
+        .feedback-item h4 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .feedback-item p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 768px) {
+            .feedback-features {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Footer */
+        footer {
+            padding: 2rem 10%;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+        }
+
+        @media (max-width: 768px) {
+            .article-header, .article-content {
+                padding-left: 5%;
+                padding-right: 5%;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <a href="index.html" class="logo">Eva Ouyang</a>
+        <ul class="nav-links">
+            <li><a href="index.html#about">About</a></li>
+            <li><a href="index.html#blog">AI Builder</a></li>
+            <li><a href="index.html#projects">Projects</a></li>
+            <li><a href="index.html#contact">Contact</a></li>
+        </ul>
+    </nav>
+
+    <!-- Article Header -->
+    <header class="article-header">
+        <a href="index.html#blog" class="back-link">← Back to Blog</a>
+        <span class="article-tag">AI Workflows</span>
+        <h1>Building HeadWriter: When Copy-Pasting Between 5 LLMs Drove Me to Build My Own Tool</h1>
+        <div class="article-meta">
+            <span>January 2026</span>
+            <span>8 min read</span>
+            <span>AI Automation, Vibe Coding</span>
+        </div>
+    </header>
+
+    <!-- Article Content -->
+    <article class="article-content">
+        <p>It started with a simple task: polish machine-translated scripts for Reid Hoffman's "Possible" podcast. How hard could it be?</p>
+
+        <p>Turns out, very hard. No matter how much I prompted—Claude, ChatGPT, Gemini, Deepseek, Doubao—I couldn't shake the <em>translationese</em>. You know that awkward, stiff quality where text is technically correct but sounds like it was written by a robot pretending to be human? That.</p>
+
+        <div class="highlight-box">
+            <p><strong>Translationese</strong> — When translated text follows source language patterns instead of sounding natural in the target language. The grammar is right, but the soul is missing.</p>
+        </div>
+
+        <h2>The Pain Point</h2>
+
+        <p>After a few hours of copy-pasting between five different LLMs, I realized my workflow was insane:</p>
+
+        <p>Copy from Deepseek → Paste into Claude for polish → Copy Claude's version → Paste into ChatGPT for comparison → Go back to Gemini to synthesize → Repeat until exhausted.</p>
+
+        <p>Each model had strengths. Deepseek excelled at business context and sentence structure. ChatGPT captured conversational flair. Doubao had modern vocabulary. Gemini found the middle ground. But no single model could nail the natural, human flow I needed.</p>
+
+        <p>I needed a tool that could orchestrate all of them.</p>
+
+        <h2>Why Podcast Translation is Uniquely Hard</h2>
+
+        <p>Before diving into the solution, let me explain what makes podcast scripts so challenging. Unlike written content, podcasts are meant to be <em>heard</em>. The text needs to pass the "Read-Aloud Test"—it has to sound natural when spoken by an AI voice.</p>
+
+        <p>Through weeks of polishing scripts, I identified four key dimensions that separate good translations from great ones:</p>
+
+        <h3>1. Sentence Structure & Rhythm</h3>
+
+        <p>English loves long, complex sentences with nested clauses. Chinese doesn't. When you translate English structure directly, you get run-on sentences that force the AI voice to speak without natural pauses—monotonous and robotic.</p>
+
+        <div class="highlight-box">
+            <p><strong>My QA Focus:</strong> Break down long English-style sentences into shorter, colloquial Chinese phrases. Give the AI natural breath points.</p>
+        </div>
+
+        <h3>2. Vocabulary & Concreteness</h3>
+
+        <p>Machine translations tend to use abstract nouns and formal vocabulary. These words are "readable" but sound hollow and academic when spoken aloud. The AI voice has nothing to work with—no texture, no emotion.</p>
+
+        <div class="highlight-box">
+            <p><strong>My QA Focus:</strong> Replace abstract, written-language terms with vivid, spoken-language alternatives. Dynamic verbs beat static nouns.</p>
+        </div>
+
+        <h3>3. Logical Flow & Connectives</h3>
+
+        <p>Direct translations overuse logical connectors like "therefore," "however," and "which reflects..." This makes speech sound mechanically structured. Native Chinese implies logic through context rather than stating it explicitly.</p>
+
+        <div class="highlight-box">
+            <p><strong>My QA Focus:</strong> Streamline clunky transitions. Let meaning flow naturally, the way native speakers actually talk.</p>
+        </div>
+
+        <h3>4. Cultural Load & Comprehensibility</h3>
+
+        <p>Some references that work perfectly for American audiences cause Chinese listeners to pause and decode. A mention of "Lina Khan" or a specific SEC ruling might need context—or a smoother adaptation—to land with the same impact.</p>
+
+        <div class="highlight-box">
+            <p><strong>My QA Focus:</strong> Identify culturally specific references and adapt them for seamless comprehension. The goal is sustained engagement, not confused pauses.</p>
+        </div>
+
+        <p>These four dimensions became my "Master Principles" for the AI arbitrator. They're baked into HeadWriter's synthesis prompt.</p>
+
+        <h2>So I Built One</h2>
+
+        <p>With zero traditional coding background, I opened Google AI Studio and started "vibe coding"—describing what I wanted in plain language and letting Gemini 3.0 help me build it.</p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">70→95</div>
+                <div class="stat-label">Translation quality score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">5</div>
+                <div class="stat-label">LLMs orchestrated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">0</div>
+                <div class="stat-label">Lines of code I wrote manually</div>
+            </div>
+        </div>
+
+        <p>A few iterations later, HeadWriter was born.</p>
+
+        <h2>What HeadWriter Does</h2>
+
+        <p>HeadWriter isn't just a translator. It's an <strong>agentic workflow</strong>—a system where AI models work together, with one "Lead Editor" (Gemini 3.0 Pro) making final decisions.</p>
+
+        <p>Think of it like a newsroom: multiple writers submit their drafts, and the editor picks the best phrases from each while maintaining a consistent voice.</p>
+
+        <!-- Product Screenshot -->
+        <div class="product-screenshot">
+            <img src="headwriter-ui.png" alt="HeadWriter Interface - The AI Writers' Room" />
+            <p class="screenshot-caption">HeadWriter: The AI Writers' Room — Directed by You</p>
+        </div>
+
+        <div class="flow-list">
+            <div class="flow-item">
+                <div class="flow-number">1</div>
+                <div class="flow-text"><strong>Load Your Work</strong> — App retrieves your previous sessions, API keys, and style settings from browser storage.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">2</div>
+                <div class="flow-text"><strong>Input Source Text</strong> — Paste your English content and define your "Master Principles" (the style guide).</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">3</div>
+                <div class="flow-text"><strong>Connect Your Models</strong> — Configure which AI models to use via their API keys.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">4</div>
+                <div class="flow-text"><strong>Parallel Generation</strong> — Hit "Run All Models" and watch them work simultaneously.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">5</div>
+                <div class="flow-text"><strong>Collect Candidates</strong> — Each model's output appears in its own container for comparison.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">6</div>
+                <div class="flow-text"><strong>Synthesize</strong> — Send all candidates to Gemini with your style principles.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">7</div>
+                <div class="flow-text"><strong>Expert Arbitration</strong> — Gemini compares versions, picks the best phrases, and catches errors.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">8</div>
+                <div class="flow-text"><strong>Structured Output</strong> — Get back the final text, strategy notes, and critiques of each model.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">9</div>
+                <div class="flow-text"><strong>Highlight Disagreements</strong> — UI marks "uncertain" segments where models disagreed significantly.</div>
+            </div>
+            <div class="flow-item">
+                <div class="flow-number">10</div>
+                <div class="flow-text"><strong>Learn & Improve</strong> — Edit the output, and the system analyzes your changes to improve future prompts.</div>
+            </div>
+        </div>
+
+        <h2>The Magic: Agentic Orchestration</h2>
+
+        <p>The key insight was this: <strong>no single LLM is best at everything</strong>. But when you let multiple models compete and have a smart "judge" synthesize their outputs, you get something better than any individual model could produce.</p>
+
+        <p>It's like ensemble learning in machine learning, but for text generation. The arbitrator doesn't just pick one version—it cherry-picks the best phrases from each while maintaining coherent style.</p>
+
+        <h3>What Each Model Brings to the Table</h3>
+
+        <p>After running dozens of scripts through HeadWriter, clear patterns emerged. The synthesis agent analyzes each candidate and reports back:</p>
+
+        <div class="model-analysis">
+            <div class="model-card" style="border-top: 3px solid #2563eb;">
+                <h4>Deepseek V3</h4>
+                <p class="strength">Outstanding grasp of professional business context. Provides the most coherent, logically flowing paragraphs for complex explanations.</p>
+                <p class="weakness">Occasionally too literal with idioms. Misses colorful colloquialisms like "icky."</p>
+            </div>
+            <div class="model-card" style="border-top: 3px solid #059669;">
+                <h4>ChatGPT-4o</h4>
+                <p class="strength">Excellent pragmatic translation. Captures the vivid, conversational nature best—words like "膈应" and "接不住" that feel alive.</p>
+                <p class="weakness">Paragraph structure can feel fragmented. Sometimes too casual for formal segments.</p>
+            </div>
+            <div class="model-card" style="border-top: 3px solid #d97706;">
+                <h4>Doubao Pro</h4>
+                <p class="strength">Good flow and modern vocabulary (e.g., "双向奔赴"). Natural rhythm.</p>
+                <p class="weakness">Tends to soften tone too much. Lacks precision in complex reasoning.</p>
+            </div>
+            <div class="model-card" style="border-top: 3px solid #7c3aed;">
+                <h4>Gemini 3.0</h4>
+                <p class="strength">Strong on specific terminology ("人工把关", "跨越国界传播"). Good middle ground between formal and casual.</p>
+                <p class="weakness">Doesn't stand out consistently, but provides key vocabulary improvements.</p>
+            </div>
+        </div>
+
+        <p>The synthesis agent takes the best from each: Deepseek's structure, ChatGPT's flair, Doubao's modern vocabulary, Gemini's terminology precision—and weaves them into a coherent whole.</p>
+
+        <div class="highlight-box">
+            <p><strong>Result:</strong> Translation quality jumped from ~70% to 90-95%. More importantly, the translationese was gone. The text finally sounded like a human wrote it.</p>
+        </div>
+
+        <h2>The Secret Weapon: Feedback Loop</h2>
+
+        <p>Here's where it gets interesting. The synthesized output is good—but not perfect. I still make edits. And HeadWriter learns from those edits.</p>
+
+        <p>The <strong>Optimization Hub</strong> compares my polished version against the draft and automatically generates:</p>
+
+        <div class="feedback-features">
+            <div class="feedback-item">
+                <h4>Project Glossary</h4>
+                <p>Terms I consistently translate a certain way get captured. "Networker" → "人脉王". "Icky" → "别扭". "Zero-sum game" → "零和博弈". Next time, the models know my preferences.</p>
+            </div>
+            <div class="feedback-item">
+                <h4>Prompt Optimization</h4>
+                <p>The system analyzes my edits and suggests improvements: "Convert flat negative statements into rhetorical questions" or "Use '双向奔赴' for 'bi-directional relationship'." These suggestions get added to my Master Principles.</p>
+            </div>
+        </div>
+
+        <p>This is what makes HeadWriter a <em>system</em> rather than just a tool. Every session makes the next one better. The glossary grows. The prompts sharpen. Quality compounds.</p>
+
+        <h2>Lessons from Vibe Coding</h2>
+
+        <div class="takeaway-box">
+            <h3>What I Learned Building This</h3>
+            <ul class="takeaway-list">
+                <li><strong>Start with the pain.</strong> The best tools come from scratching your own itch.</li>
+                <li><strong>Orchestration > Single Model.</strong> Multiple AI models working together beat any single model.</li>
+                <li><strong>You don't need to code.</strong> Describe what you want clearly, and AI can help you build it.</li>
+                <li><strong>Feedback loops matter.</strong> The system that learns from your edits is more valuable than one that doesn't.</li>
+                <li><strong>Ship fast, iterate faster.</strong> My first version was ugly. The fifth version actually worked.</li>
+            </ul>
+        </div>
+
+        <h2>Try It Yourself</h2>
+
+        <p>HeadWriter is open source. If you work with translations, content, or any task where you're juggling multiple LLMs, feel free to fork it and make it your own.</p>
+
+        <a href="https://github.com/manjingouyang2025-crypto/HeadWriter" target="_blank" class="github-link">
+            <svg style="width:1.25rem;height:1.25rem;margin-right:0.5rem" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            View on GitHub
+        </a>
+
+        <p>This was my first "vibe coding" project. It won't be my last. There's something liberating about describing what you want and watching it come to life—even if you've never written a line of code.</p>
+
+        <p>The future belongs to people who can think in systems and articulate what they need. The AI will handle the rest.</p>
+
+        <p><em>— Eva</em></p>
+    </article>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2026 Eva Ouyang. Built with curiosity and AI.</p>
+    </footer>
+</body>
+</html>
